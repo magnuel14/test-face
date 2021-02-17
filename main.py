@@ -4,15 +4,15 @@ import argparse
 from network_model import model
 from aux_functions import *
 
-# Suprime las advertencias TF
+# Suppress TF warnings
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 mouse_pts = []
 
 
 def get_mouse_points(event, x, y, flags, param):
-        # Se usa para marcar 4 puntos en el cuadro cero del video que se deformarán
-        # Se usa para marcar 2 puntos en el cuadro cero del video que están a 6 pies de distancia
+    # Se usa para marcar 4 puntos en el cuadro cero del video que se deformarán
+    # Se usa para marcar 2 puntos en el cuadro cero del video que están a 180 centrimetros de distancia
     global mouseX, mouseY, mouse_pts
     if event == cv2.EVENT_LBUTTONDOWN:
         mouseX, mouseY = x, y
@@ -20,21 +20,22 @@ def get_mouse_points(event, x, y, flags, param):
         if "mouse_pts" not in globals():
             mouse_pts = []
         mouse_pts.append((x, y))
-        print("Point detected")
+        print("Punto detectado")
         print(mouse_pts)
 
-#Configuración de entrada de línea de comandos
-parser = argparse.ArgumentParser(description="SocialDistancing")
+
+# Configuración de entrada de línea de comandos
+parser = argparse.ArgumentParser(description="SocialDistancia")
 parser.add_argument(
-    "--videopath", type=str, default="vid_short.mp4", help="Path to the video file"
+    "--videopath", type=str, default="video_corto.mp4", help="Ruta al archivo de video"
 )
 args = parser.parse_args()
 
 input_video = args.videopath
 
-# Definir un modelo DNN
+# Se define un modelo DNN 
 DNN = model()
-# Obtener control de video
+#Se obtine cabezera del video
 cap = cv2.VideoCapture(input_video)
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -44,13 +45,13 @@ scale_w = 1.2 / 2
 scale_h = 4 / 2
 
 SOLID_BACK_COLOR = (41, 41, 41)
-#Configurar el escritor de video
+# Configurar el escritor de video
 fourcc = cv2.VideoWriter_fourcc(*"XVID")
-output_movie = cv2.VideoWriter("Pedestrian_detect.avi", fourcc, fps, (width, height))
+output_movie = cv2.VideoWriter("DetecciónDePeatones.avi", fourcc, fps, (width, height))
 bird_movie = cv2.VideoWriter(
-    "Pedestrian_bird.avi", fourcc, fps, (int(width * scale_w), int(height * scale_h))
+    "Dectector_mov.avi", fourcc, fps, (int(width * scale_w), int(height * scale_h))
 )
-# Inicializar las variables necesarias
+# Se inicializan las variables necesarias
 frame_num = 0
 total_pedestrians_detected = 0
 total_six_feet_violations = 0
@@ -65,20 +66,20 @@ cv2.setMouseCallback("image", get_mouse_points)
 num_mouse_points = 0
 first_frame_display = True
 
-# Procese cada cuadro, hasta el final del video
+# Se procesa cada fotograma, hasta el final del video
 while cap.isOpened():
     frame_num += 1
     ret, frame = cap.read()
 
     if not ret:
-        print("end of the video file...")
+        print("Fin del video...")
         break
 
     frame_h = frame.shape[0]
     frame_w = frame.shape[1]
 
     if frame_num == 1:
-        #se pidel usuario que marque puntos paralelos y dos puntos separados por 6 pies. Orden bl, br, tr, tl, p1, p2
+# Pida al usuario que marque puntos paralelos y dos puntos separados por 6 pies. Orden bl, br, tr, tl, p1, p2
         while True:
             image = frame
             cv2.imshow("image", image)
@@ -89,7 +90,7 @@ while cap.isOpened():
             first_frame_display = False
         four_points = mouse_pts
 
-# Obtenga perspectiva
+        # Obtener perspectiva
         M, Minv = get_camera_perspective(frame, four_points[0:4])
         pts = src = np.float32(np.array([four_points[4:]]))
         warped_pt = cv2.perspectiveTransform(pts, M)[0]
@@ -104,15 +105,15 @@ while cap.isOpened():
         bird_image[:] = SOLID_BACK_COLOR
         pedestrian_detect = frame
 
-    print("Processing frame: ", frame_num)
+    print("Procesando fotograma: ", frame_num)
 
- # dibujar polígono de ROI
+    #Se dibuja el polígono de ROI(región binaria de interés)
     pts = np.array(
         [four_points[0], four_points[1], four_points[3], four_points[2]], np.int32
     )
     cv2.polylines(frame, [pts], True, (0, 255, 255), thickness=4)
 
-# Detectar personas y cuadros delimitadores usando DNN
+    #Detectar personas y cuadros delimitadores mediante DNN(Detección de objetos basada en Deep Learning )
     pedestrian_boxes, num_pedestrians = DNN.detect_pedestrians(frame)
 
     if len(pedestrian_boxes) > 0:
@@ -123,7 +124,7 @@ while cap.isOpened():
         six_feet_violations, ten_feet_violations, pairs = plot_lines_between_nodes(
             warped_pts, bird_image, d_thresh
         )
-        #trazar rectángulos de violación (pedestrian_boxes,)
+        # plot_violation_rectangles(pedestrian_boxes, )
         total_pedestrians_detected += num_pedestrians
         total_pairs += pairs
 
@@ -134,16 +135,16 @@ while cap.isOpened():
         )
 
     last_h = 75
-    text = "# 6ft violations: " + str(int(total_six_feet_violations))
+    text = "# 180cm violaciones: " + str(int(total_six_feet_violations))
     pedestrian_detect, last_h = put_text(pedestrian_detect, text, text_offset_y=last_h)
 
-    text = "Stay-at-home Index: " + str(np.round(100 * sh_index, 1)) + "%"
+    text = "IndicePer: " + str(np.round(100 * sh_index, 1)) + "%"
     pedestrian_detect, last_h = put_text(pedestrian_detect, text, text_offset_y=last_h)
 
     if total_pairs != 0:
         sc_index = 1 - abs_six_feet_violations / total_pairs
 
-    text = "Social-distancing Index: " + str(np.round(100 * sc_index, 1)) + "%"
+    text = "IDistanciamiento: " + str(np.round(100 * sc_index, 1)) + "%"
     pedestrian_detect, last_h = put_text(pedestrian_detect, text, text_offset_y=last_h)
 
     cv2.imshow("Street Cam", pedestrian_detect)
